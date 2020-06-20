@@ -1,19 +1,24 @@
-FROM ubuntu:latest
+FROM ubuntu:14.04
 
 LABEL maintainer "robertkazakov@mail.ru"
 
-# Install minimal runtime
-RUN apt-get update -qqy && \
-    apt-get -qqy --no-install-recommends install \
-    bzip2 \
-    ca-certificates \
-    default-jre \
-    sudo \
-    unzip \
-    wget \
-    libgconf-2-4
+# Installing Firefox-browser, packeges for managing x11-socket
+RUN apt-get update && \
+    apt-get install -y \
+    firefox \
+    libcanberra-gtk-module \
+    packagekit-gtk3-module
 
-# Install supervisor, VNC, & X11 packages
+# Replace 1000 with your user / group id
+RUN export uid=1000 gid=1000 && \
+mkdir -p /home/developer && \
+echo "developer:x:${uid}:${gid}:Developer,,,:/home/developer:/bin/bash" >> /etc/passwd && \
+echo "developer:x:${uid}:" >> /etc/group && \
+echo "developer ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/developer && \
+chmod 0440 /etc/sudoers.d/developer && \
+chown ${uid}:${gid} -R /home/developer
+
+# Installing window-manager, VNC and XVFB
 RUN set -ex && \
     apt-get update && \
     apt-get install -y \
@@ -27,37 +32,26 @@ RUN set -ex && \
       xterm \
       xvfb
 
+# Installing VNCviewer for testing environment
+RUN apt-get update && \
+    apt-get install -y vncviewer
+
+# ENV DISPLAY=192.168.1.196:0
+
+# Installing fonts, dpi, xorg for XVFB
 RUN apt-get update && \
     apt-get install -y \
     x11-xkb-utils \
     xfonts-100dpi xfonts-75dpi xfonts-scalable xfonts-cyrillic \
-    xserver-xorg-core \
-    firefox
+    xserver-xorg-core
 
 RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+#RUN sudo -H Xvfb :0 -screen 0 1024x768x24
+#RUN sudo -H fluxbox &
+#RUN sudo -H x11vnc -display :0 -bg -forever -nopw -quiet -listen localhost -rfbport 5566 -xkb
 
-RUN sudo useradd rabbit --shell /bin/bash --create-home \
-  && sudo usermod -a -G sudo rabbit \
-  && echo 'ALL ALL = (ALL) NOPASSWD: ALL' >> /etc/sudoers \
-  && echo 'rabbit:secret' | chpasswd
-
-ENV HOME=/root \
-    DEBIAN_FRONTEND=noninteractive \
-    LANG=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    LC_ALL=C.UTF-8 \
-    DISPLAY=:0 \
-    DISPLAY_WIDTH=1024 \
-    DISPLAY_HEIGHT=768 \
-    RUN_XTERM=yes \
-    RUN_FLUXBOX=yes
-
-USER root
-
-RUN sudo -H Xvfb $DISPLAY -screen 0 ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x16 -fbdir /var/tmp&
-RUN sudo -H fluxbox & 
-RUN sudo -H x11vnc -display ${DISPLAY} -bg -nopw -listen localhost -xkb -rfbport 5566 -noxrecord -noxfixes -noxdamage
-
+USER developer
+ENV HOME /home/developer
 EXPOSE 5566
 
-RUN firefox
+CMD /usr/bin/firefox
