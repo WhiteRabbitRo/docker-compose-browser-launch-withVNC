@@ -1,57 +1,55 @@
-FROM ubuntu:14.04
+FROM alpine:latest
 
 LABEL maintainer "robertkazakov@mail.ru"
 
-# Installing Firefox-browser, packeges for managing x11-socket
-RUN apt-get update && \
-    apt-get install -y \
-    firefox \
-    libcanberra-gtk-module \
-    packagekit-gtk3-module
+# Installing browser
+RUN apk add --no-cache \
+  firefox
 
-# Replace 1000 with your user / group id
+# Installing Xephyr(X monitors), fluxbox (win-manager), x11vnc (VNC)
+RUN apk add --no-cache \
+  xorg-server-xephyr \
+  fluxbox \
+  x11vnc
+
+# Installing fonts, sudo
+RUN apk add --no-cache \
+  font-cronyx-cyrillic \
+  sudo
+
+# Creating new user 
 RUN export uid=1000 gid=1000 && \
-mkdir -p /home/developer && \
-echo "developer:x:${uid}:${gid}:Developer,,,:/home/developer:/bin/bash" >> /etc/passwd && \
-echo "developer:x:${uid}:" >> /etc/group && \
-echo "developer ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/developer && \
-chmod 0440 /etc/sudoers.d/developer && \
-chown ${uid}:${gid} -R /home/developer
+  mkdir -p /home/developer && \
+  echo "developer:x:${uid}:${gid}:Developer,,,:/home/developer:/bin/bash" >> /etc/passwd && \
+  echo "developer:x:${uid}:" >> /etc/group && \
+  echo "developer ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/developer && \
+  chmod 0440 /etc/sudoers.d/developer && \
+  chown ${uid}:${gid} -R /home/developer
 
-# Installing window-manager, VNC and XVFB
-RUN set -ex && \
-    apt-get update && \
-    apt-get install -y \
-      bash \
-      fluxbox \
-      net-tools \
-      novnc \
-      socat \
-      supervisor \
-      x11vnc \
-      xterm \
-      xvfb
+ARG DISPLAY
+ARG DISPLAY_HEIGHT
+ARG DISPLAY_WIDTH
+ARG DISPLAY_DEPTH
+ARG DISPLAY_NUM
+ARG PORT
 
-# Installing VNCviewer for testing environment
-RUN apt-get update && \
-    apt-get install -y vncviewer
+ENV DISPLAY=${DISPLAY}
+ENV RESOLUTION="${DISPLAY_HEIGHT}x${DISPLAY_WIDTH}x${DISPLAY_DEPTH}"
 
-# ENV DISPLAY=192.168.1.196:0
+# Launching virtual X display
+RUN DISPLAY=${DISPLAY} Xephyr -ac -screen ${RESOLUTION} -br -reset -terminate 2> /dev/null ${DISPLAY_NUM} &
 
-# Installing fonts, dpi, xorg for XVFB
-RUN apt-get update && \
-    apt-get install -y \
-    x11-xkb-utils \
-    xfonts-100dpi xfonts-75dpi xfonts-scalable xfonts-cyrillic \
-    xserver-xorg-core
+# Running window manager onto the new display
+RUN DISPLAY=${DISPLAY_NUM} fluxbox &
 
-RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-#RUN sudo -H Xvfb :0 -screen 0 1024x768x24
-#RUN sudo -H fluxbox &
-#RUN sudo -H x11vnc -display :0 -bg -forever -nopw -quiet -listen localhost -rfbport 5566 -xkb
+# Connecting with VNC
+RUN /usr/bin/x11vnc -display ${DISPLAY_NUM} -xkb -rbport 5566 -noxrecord -noxfixes -noxdamage -forever -nopw &
 
 USER developer
 ENV HOME /home/developer
-EXPOSE 5566
 
+# Opening port
+EXPOSE ${PORT}
+
+# Launching browser
 CMD /usr/bin/firefox

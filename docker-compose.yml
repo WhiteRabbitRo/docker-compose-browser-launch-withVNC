@@ -2,8 +2,15 @@ version: "3"
 
 services:
     browser:
-        # image: alpine:latest
-        build: .
+        build:
+            context: .
+            args:
+                - DISPLAY=192.168.1.196:0
+                - DISPLAY_HEIGHT=1024
+                - DISPLAY_WIDTH=768
+                - DISPLAY_DEPTH=24
+                - DISPLAY_NUM=:1
+                - PORT=5566
         container_name: browser_container
         network_mode: bridge
         ports: 
@@ -15,3 +22,12 @@ services:
             - DISPLAY=192.168.1.196:0
         volumes: 
             - /tmp/.X11-unix:/tmp/.X11-uni
+            - $HOME/.config/app:/root/.config/app
+        devices:
+            - "/dev/dri"
+            - "/dev/snd"
+            - "/dev/video0"
+            - "/dev/input"
+        privileged: true
+        ipc: host
+        pid: "host"
